@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Movimento 1D — Física</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Nunito:wght@400;600;700;900&display=swap');
+  :root {
+    --bg: #0d0f1a; --surface: #161929; --surface2: #1e2236;
+    --accent: #00e5ff; --accent2: #ff4d6d; --accent3: #a8ff3e;
+    --text: #e8eaf6; --muted: #7986cb; --track: #252b42; --radius: 16px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Nunito', sans-serif; background: var(--bg); color: var(--text);
+    min-height: 100dvh; display: flex; flex-direction: column;
+    overflow-x: hidden; -webkit-tap-highlight-color: transparent;
+  }
+  header {
+    display: flex; align-items: center; justify-content: center;
+    gap: 12px; padding: 16px 20px;
+    background: var(--surface); border-bottom: 2px solid rgba(0,229,255,0.1);
+    position: relative; z-index: 100;
+  }
+  header h1 {
+    font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700;
+    color: var(--accent); letter-spacing: 1px; text-transform: uppercase;
+  }
+  .badge {
+    font-family: 'Space Mono', monospace; font-size: 10px;
+    background: rgba(0,229,255,0.12); color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 20px; padding: 3px 10px;
+  }
+  main { 
+  flex: 1; width: 100%; max-width: 1440px; margin: 0 auto;
+  display: grid; grid-template-columns: 1fr; gap: 16px; padding: 16px;
+}
+
+/* ── PC DASHBOARD LAYOUT ── */
+@media (min-width: 1100px) {
+  main {
+    grid-template-columns: 340px 1fr 400px;
+    grid-template-rows: auto auto 1fr;
+    gap: 24px; padding: 24px;
+    align-items: start;
+  }
+  .sim-section { grid-column: 2; grid-row: 1; margin: 0 !important; }
+  .controls-section { grid-column: 1; grid-row: 1 / span 2; margin: 0 !important; }
+  .graph-wrapper { grid-column: 3; grid-row: 1 / span 2; margin: 0 !important; }
+  .formula-container { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; gap: 16px; margin: 0 !important; }
+  .formula-card { margin: 0 !important; }
+  .formula-text { font-size: 18px; }
+  
+  .track-wrapper { height: 180px; }
+  .graph-card { display: block !important; }
+  .graph-tabs { display: none; }
+}
+
+@media (max-width: 1099px) and (min-width: 600px) {
+  main { max-width: 600px; padding: 20px; }
+  body { align-items: center; }
+}
+
+@media (max-width: 599px) {
+  main { max-width: 100%; }
+}
+  .sim-section {
+    background: var(--surface); padding: 16px 16px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .kinematic-display { display: flex; gap: 8px; margin-bottom: 14px; }
+  .kd-card {
+    flex: 1; background: var(--surface2); border-radius: 12px; padding: 8px 10px;
+    text-align: center; border: 1px solid rgba(255,255,255,0.06);
+  }
+  .kd-label {
+    font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 3px;
+  }
+  .kd-value { font-family: 'Space Mono', monospace; font-size: 16px; font-weight: 700; }
+  .kd-unit { font-size: 9px; color: var(--muted); }
+  .kd-pos .kd-value { color: var(--accent); }
+  .kd-vel .kd-value { color: var(--accent3); }
+  .kd-acc .kd-value { color: var(--accent2); }
+  .track-wrapper {
+    position: relative; height: 110px; background: var(--track);
+    border-radius: 14px; overflow: hidden; border: 1px solid rgba(255,255,255,0.07);
+  }
+  /* Canvas fills wrapper via JS — no CSS width/height to avoid layout timing issues */
+  #trackCanvas { display: block; position: absolute; top: 0; left: 0; }
+  .time-bar {
+    display: flex; align-items: center; justify-content: space-between; margin-top: 10px;
+  }
+  .time-bar span { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); }
+  .t-val { font-family: 'Space Mono', monospace; font-size: 13px; color: var(--text); font-weight: 700; }
+  .controls-section { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .slider-group {
+    background: var(--surface); border-radius: var(--radius); padding: 14px 16px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .slider-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+  }
+  .slider-label { display: flex; align-items: center; gap: 8px; }
+  .slider-icon {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+  }
+  .icon-v0 { background: rgba(168,255,62,0.15); }
+  .icon-a  { background: rgba(255,77,109,0.15); }
+  .icon-x0 { background: rgba(0,229,255,0.15); }
+  .slider-name { font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; color: var(--text); }
+  .slider-sub { font-size: 10px; color: var(--muted); }
+  .slider-readout { font-family: 'Space Mono', monospace; font-size: 18px; font-weight: 700; text-align: right; }
+  .readout-v0 { color: var(--accent3); } .readout-a { color: var(--accent2); } .readout-x0 { color: var(--accent); }
+  .readout-unit { font-size: 10px; color: var(--muted); }
+  input[type=range] { -webkit-appearance: none; width: 100%; height: 6px; border-radius: 4px; outline: none; cursor: pointer; }
+  input[type=range].slider-v0 { background: linear-gradient(to right, var(--accent3) var(--fill, 50%), rgba(255,255,255,0.1) var(--fill, 50%)); }
+  input[type=range].slider-a  { background: linear-gradient(to right, var(--accent2) var(--fill, 50%), rgba(255,255,255,0.1) var(--fill, 50%)); }
+  input[type=range].slider-x0 { background: linear-gradient(to right, var(--accent) var(--fill, 50%), rgba(255,255,255,0.1) var(--fill, 50%)); }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--text); border: 3px solid var(--bg); box-shadow: 0 2px 8px rgba(0,0,0,0.5); cursor: pointer;
+  }
+  .btn-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .btn {
+    padding: 16px 8px; border: none; border-radius: var(--radius);
+    font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 14px; cursor: pointer;
+    transition: transform 0.1s, opacity 0.2s; display: flex; flex-direction: column;
+    align-items: center; gap: 4px; -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active { transform: scale(0.95); }
+  .btn-icon { font-size: 22px; line-height: 1; }
+  .btn-start { background: var(--accent3); color: #0d0f1a; }
+  .btn-pause { background: var(--accent); color: #0d0f1a; }
+  .btn-reset { background: var(--surface2); color: var(--text); border: 1.5px solid rgba(255,255,255,0.1); }
+  .btn:disabled { opacity: 0.4; pointer-events: none; }
+  .graphs-section { padding: 0 16px; }
+  .section-title {
+    font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.07); }
+  .graph-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .graph-tab {
+    flex: 1; padding: 10px 8px; border-radius: 10px;
+    border: 1.5px solid rgba(255,255,255,0.08); background: var(--surface);
+    color: var(--muted); font-family: 'Space Mono', monospace; font-size: 10px;
+    font-weight: 700; text-align: center; cursor: pointer; transition: all 0.2s;
+  }
+  .graph-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(0,229,255,0.08); }
+  .graph-card {
+    background: var(--surface); border-radius: var(--radius); padding: 14px;
+    border: 1px solid rgba(255,255,255,0.06); display: none;
+  }
+  .graph-card.active { display: block; }
+  .graph-card canvas { width: 100% !important; height: 160px !important; }
+  .formula-card {
+    margin: 0 16px; background: var(--surface); border-radius: var(--radius);
+    padding: 14px 16px; border: 1px solid rgba(255,255,255,0.06);
+    border-left: 3px solid var(--accent);
+  }
+  .formula-title { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .formula-text { font-family: 'Space Mono', monospace; font-size: 16px; color: var(--text); line-height: 1.8; }
+  .formula-text em { color: var(--accent); font-style: normal; font-weight: 700; }
+  .formula-text strong { color: var(--accent3); }
+  .formula-text sup { font-size: 0.85em; color: var(--accent); margin-left: 1px; }
+  .spacer { height: 14px; }
+  .challenge-toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(120px);
+    background: var(--surface2); border: 1.5px solid var(--accent);
+    border-radius: var(--radius); padding: 14px 18px;
+    max-width: calc(100vw - 40px); width: 360px;
+    box-shadow: 0 8px 32px rgba(0,229,255,0.2); z-index: 200;
+    transition: transform 0.4s cubic-bezier(.34,1.56,.64,1);
+    display: flex; align-items: flex-start; gap: 12px;
+  }
+  .challenge-toast.show { transform: translateX(-50%) translateY(0); }
+  .challenge-icon { font-size: 24px; }
+  .challenge-body { flex: 1; }
+  .challenge-label { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; }
+  .challenge-text { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.4; }
+  .challenge-close { background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 0; line-height: 1; }
+  .success-flash {
+    position: fixed; inset: 0; background: rgba(168,255,62,0.12);
+    pointer-events: none; opacity: 0; z-index: 300; transition: opacity 0.3s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .success-flash.show { opacity: 1; }
+  .success-flash span { font-family: 'Space Mono', monospace; font-size: 32px; font-weight: 700; color: var(--accent3); text-shadow: 0 0 20px var(--accent3); }
+
+  /* ── EQUATION DYNAMICS ── */
+  .formula-text .f-val { font-weight: 700; transition: color 0.3s; display: inline-block; }
+  .formula-text .x0 { color: var(--accent); }
+  .formula-text .v0 { color: var(--accent3); }
+  .formula-text .a  { color: var(--accent2); }
+
+  @keyframes pulseVal {
+    0% { transform: scale(1); filter: brightness(1); }
+    50% { transform: scale(1.15); filter: brightness(1.8); }
+    100% { transform: scale(1); filter: brightness(1); }
+  }
+  .f-pulse { animation: pulseVal 0.35s ease-out; }
+</style>
+</head>
+<body>
+<header>
+  <h1>&#9889; Movimento 1D</h1>
+  <span class="badge">Fisica - EM</span>
+</header>
+<main>
+  <div class="sim-section">
+    <div class="kinematic-display">
+      <div class="kd-card kd-pos">
+        <span class="kd-label">Posicao</span>
+        <span class="kd-value" id="dispX">0.0</span>
+        <span class="kd-unit"> m</span>
+      </div>
+      <div class="kd-card kd-vel">
+        <span class="kd-label">Velocidade</span>
+        <span class="kd-value" id="dispV">0.0</span>
+        <span class="kd-unit"> m/s</span>
+      </div>
+      <div class="kd-card kd-acc">
+        <span class="kd-label">Aceleracao</span>
+        <span class="kd-value" id="dispA">0.0</span>
+        <span class="kd-unit"> m/s2</span>
+      </div>
+    </div>
+    <div class="track-wrapper" id="trackWrapper">
+      <canvas id="trackCanvas"></canvas>
+    </div>
+    <div class="time-bar">
+      <span>Tempo</span>
+      <span class="t-val" id="dispT">0.00 s</span>
+      <span id="stateLabel" style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);">PARADO</span>
+    </div>
+  </div>
+  <div class="controls-section">
+    <div class="slider-group">
+      <div class="slider-header">
+        <div class="slider-label">
+          <div class="slider-icon icon-x0">&#128205;</div>
+          <div><div class="slider-name">x0</div><div class="slider-sub">Posicao inicial</div></div>
+        </div>
+        <div class="slider-readout readout-x0"><span id="readX0">0.0</span><span class="readout-unit"> m</span></div>
+      </div>
+      <input type="range" class="slider-x0" id="sliderX0" min="-50" max="50" value="0" step="0.5">
+    </div>
+    <div class="slider-group">
+      <div class="slider-header">
+        <div class="slider-label">
+          <div class="slider-icon icon-v0">&#127950;</div>
+          <div><div class="slider-name">v0</div><div class="slider-sub">Velocidade inicial</div></div>
+        </div>
+        <div class="slider-readout readout-v0"><span id="readV0">0.0</span><span class="readout-unit"> m/s</span></div>
+      </div>
+      <input type="range" class="slider-v0" id="sliderV0" min="-20" max="20" value="0" step="0.5">
+    </div>
+    <div class="slider-group">
+      <div class="slider-header">
+        <div class="slider-label">
+          <div class="slider-icon icon-a">&#128640;</div>
+          <div><div class="slider-name">a</div><div class="slider-sub">Aceleracao</div></div>
+        </div>
+        <div class="slider-readout readout-a"><span id="readA">0.0</span><span class="readout-unit"> m/s2</span></div>
+      </div>
+      <input type="range" class="slider-a" id="sliderA" min="-10" max="10" value="0" step="0.5">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-start" id="btnStart" onclick="startSim()">
+        <span class="btn-icon">&#9654;</span>Iniciar
+      </button>
+      <button class="btn btn-pause" id="btnPause" onclick="pauseSim()" disabled>
+        <span class="btn-icon">&#9646;&#9646;</span>Pausar
+      </button>
+      <button class="btn btn-reset" onclick="resetSim()">
+        <span class="btn-icon">&#8635;</span>Reiniciar
+      </button>
+    </div>
+  </div>
+
+  <div class="formula-container">
+    <div class="formula-card">
+      <div class="formula-title">Equações Gerais (Teoria)</div>
+      <div class="formula-text">
+        <em>x</em> = x₀ + v₀t + ½ at<sup>2</sup><br>
+        <strong>v</strong> = v₀ + at<br>
+        v<sup>2</sup> = v₀<sup>2</sup> + 2aΔx
+      </div>
+    </div>
+
+    <div class="formula-card numeric" style="border-left-color: var(--accent3)">
+      <div class="formula-title">Equação da Trajetória (Dados Atuais)</div>
+      <div class="formula-text" id="formulaLive">
+        <em>x</em> = <span class="f-val x0" id="fx0">0.0</span> + <span class="f-val v0" id="fv0">0.0</span>t + ½(<span class="f-val a" id="fa">0.0</span>)t<sup>2</sup><br>
+        <strong>v</strong> = <span class="f-val v0" id="fv0_v">0.0</span> + (<span class="f-val a" id="fa_v">0.0</span>)t
+      </div>
+    </div>
+  </div>
+
+  <div class="graph-wrapper">
+    <div class="graphs-section">
+      <div class="section-title">Cinematica Tempo-Real</div>
+      <div class="graph-tabs">
+        <div class="graph-tab active" id="tab-xt" onclick="switchTab('xt')">x vs t</div>
+        <div class="graph-tab" id="tab-vt" onclick="switchTab('vt')">v vs t</div>
+      </div>
+      <div class="graph-card active" id="card-xt"><canvas id="chartXT"></canvas></div>
+      <div class="graph-card" id="card-vt"><canvas id="chartVT"></canvas></div>
+    </div>
+  </div>
+</main>
+<div class="challenge-toast" id="challengeToast">
+  <div class="challenge-icon" id="challengeIcon">&#127919;</div>
+  <div class="challenge-body">
+    <div class="challenge-label">Desafio</div>
+    <div class="challenge-text" id="challengeText">Faca o objeto parar no ponto x = 10 m</div>
+  </div>
+  <button class="challenge-close" onclick="closeChallenge()">x</button>
+</div>
+<div class="success-flash" id="successFlash"><span>PARABENS!</span></div>
+
+<script>
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+var WORLD_MIN = -50, WORLD_MAX = 50, WORLD_RANGE = 100;
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+var state = {
+  running: false, t: 0, x: 0, v: 0,
+  x0: 0, v0: 0, a: 0,
+  cameraX: 0,
+  trail: [], maxTrail: 80,
+  challengeDone: false, raf: null, lastTime: null,
+  tHistory: [], xHistory: [], vHistory: [], maxHistory: 10000
+};
+
+// ─── CANVAS SETUP ─────────────────────────────────────────────────────────────
+var trackCanvas = document.getElementById('trackCanvas');
+var tctx = trackCanvas.getContext('2d');
+var trackWrapper = document.getElementById('trackWrapper');
+
+// Canvas dimensions — set explicitly, never rely on CSS layout
+var CW = 320, CH = 110;
+
+function resizeCanvas() {
+  // Use the wrapper's actual pixel size — guaranteed after layout
+  var r = trackWrapper.getBoundingClientRect();
+  var w = Math.floor(r.width);
+  var h = Math.floor(r.height);
+  if (w > 10 && h > 10) {
+    CW = w; CH = h;
+    trackCanvas.width = CW;
+    trackCanvas.height = CH;
+    trackCanvas.style.width = CW + 'px';
+    trackCanvas.style.height = CH + 'px';
+  }
+}
+
+// ─── SLIDERS ──────────────────────────────────────────────────────────────────
+function initSliders() {
+  var defs = [
+    { id: 'sliderX0', readId: 'readX0', prop: 'x0', cls: 'slider-x0', min: -50, max: 50 },
+    { id: 'sliderV0', readId: 'readV0', prop: 'v0', cls: 'slider-v0', min: -20, max: 20 },
+    { id: 'sliderA',  readId: 'readA',  prop: 'a',  cls: 'slider-a',  min: -10, max: 10 }
+  ];
+  defs.forEach(function(d) {
+    var el = document.getElementById(d.id);
+    function setFill(v) {
+      var pct = ((v - d.min) / (d.max - d.min)) * 100;
+      el.style.setProperty('--fill', pct + '%');
+    }
+    setFill(+el.value);
+    state[d.prop] = +el.value;
+    el.addEventListener('input', function() {
+      var v = +el.value;
+      state[d.prop] = v;
+      document.getElementById(d.readId).textContent = v.toFixed(1);
+      setFill(v);
+      if (!state.running) {
+        state.x = state.x0; state.v = state.v0;
+        updateDisplays(); drawTrack(); updateFormulaValues(true);
+      }
+    });
+  });
+  updateFormulaValues(false);
+}
+
+// ─── BUTTONS ──────────────────────────────────────────────────────────────────
+function startSim() {
+  if (state.running) return;
+  state.running = true; state.lastTime = null;
+  document.getElementById('btnStart').disabled = true;
+  document.getElementById('btnPause').disabled = false;
+  setLabel('RODANDO', 'var(--accent3)');
+  requestAnimationFrame(loop);
+}
+function pauseSim() {
+  state.running = false;
+  if (state.raf) cancelAnimationFrame(state.raf);
+  document.getElementById('btnStart').disabled = false;
+  document.getElementById('btnPause').disabled = true;
+  setLabel('PAUSADO', 'var(--accent)');
+}
+function resetSim() {
+  state.running = false;
+  if (state.raf) cancelAnimationFrame(state.raf);
+  state.t = 0; state.x = state.x0; state.v = state.v0;
+  state.cameraX = state.x0;
+  state.trail = []; state.tHistory = []; state.xHistory = []; state.vHistory = [];
+  state.challengeDone = false;
+  document.getElementById('btnStart').disabled = false;
+  document.getElementById('btnPause').disabled = true;
+  setLabel('PARADO', 'var(--muted)');
+  updateDisplays(); drawTrack(); updateCharts(); updateFormulaValues(false);
+}
+
+function updateFormulaValues(animate) {
+  const ids = {
+    fx0: state.x0, 
+    fv0: state.v0, fv0_v: state.v0,
+    fa: state.a, fa_v: state.a
+  };
+  for (let id in ids) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.textContent = ids[id].toFixed(1);
+    if (animate) {
+      el.classList.remove('f-pulse');
+      void el.offsetWidth; // trigger reflow
+      el.classList.add('f-pulse');
+    }
+  }
+}
+function setLabel(txt, col) {
+  var el = document.getElementById('stateLabel');
+  el.textContent = txt; el.style.color = col;
+}
+
+// ─── PHYSICS LOOP ─────────────────────────────────────────────────────────────
+function loop(ts) {
+  if (!state.running) return;
+  if (!state.lastTime) state.lastTime = ts;
+  var dt = Math.min((ts - state.lastTime) / 1000, 0.05);
+  state.lastTime = ts;
+  state.t += dt;
+  state.v = state.v0 + state.a * state.t;
+  state.x = state.x0 + state.v0 * state.t + 0.5 * state.a * state.t * state.t;
+  state.trail.push(state.x);
+  if (state.trail.length > state.maxTrail) state.trail.shift();
+  
+  // Camera smooth follow
+  state.cameraX += (state.x - state.cameraX) * 0.1;
+
+  state.tHistory.push(state.t);
+  state.xHistory.push(state.x);
+  state.vHistory.push(state.v);
+  if (state.tHistory.length > state.maxHistory) {
+    state.tHistory.shift(); state.xHistory.shift(); state.vHistory.shift();
+  }
+  updateDisplays(); drawTrack(); updateCharts(); checkChallenge();
+  state.raf = requestAnimationFrame(loop);
+}
+
+// ─── DISPLAY ──────────────────────────────────────────────────────────────────
+function updateDisplays() {
+  document.getElementById('dispX').textContent = state.x.toFixed(1);
+  document.getElementById('dispV').textContent = state.v.toFixed(1);
+  document.getElementById('dispA').textContent = state.a.toFixed(1);
+  document.getElementById('dispT').textContent = state.t.toFixed(2) + ' s';
+}
+
+// ─── WORLD->CANVAS (RELATIVE TO CAMERA) ──────────────────────────────────────
+function w2c(worldX) {
+  var viewRange = 100; // Total meters visible on screen
+  var leftmost = state.cameraX - viewRange / 2;
+  return ((worldX - leftmost) / viewRange) * CW;
+}
+
+// ─── DRAW TRACK ───────────────────────────────────────────────────────────────
+function drawTrack() {
+  // Ensure canvas has valid pixel dimensions
+  if (CW < 10 || CH < 10) { resizeCanvas(); }
+  var W = CW, H = CH;
+  var cx = tctx;
+  cx.clearRect(0, 0, W, H);
+
+  var railY = H * 0.62;
+
+  // grid + ticks + labels (looping logic)
+  var step = 10;
+  var viewRange = 100;
+  var startX = Math.floor((state.cameraX - viewRange) / step) * step;
+  var endX = Math.ceil((state.cameraX + viewRange) / step) * step;
+
+  cx.font = 'bold 10px Space Mono, monospace'; cx.textAlign = 'center';
+
+  for (var i = startX; i <= endX; i += step) {
+    var px = w2c(i);
+    // Vertical grid
+    cx.strokeStyle = 'rgba(255,255,255,0.04)';
+    cx.beginPath(); cx.moveTo(px, 0); cx.lineTo(px, H); cx.stroke();
+    
+    // Ticks
+    cx.fillStyle = 'rgba(255,255,255,0.25)';
+    cx.fillRect(px - 0.5, railY - 5, 1, 10);
+    
+    // Labels
+    cx.fillStyle = i === 0 ? '#00e5ff' : 'rgba(255,255,255,0.4)';
+    cx.fillText(i + 'm', px, railY + 18);
+  }
+
+  // rail
+  cx.beginPath(); cx.moveTo(0, railY); cx.lineTo(W, railY);
+  cx.strokeStyle = 'rgba(255,255,255,0.12)'; cx.lineWidth = 2; cx.stroke();
+
+  // trail
+  for (var j = 1; j < state.trail.length; j++) {
+    var alpha = j / state.trail.length;
+    var tx = w2c(state.trail[j]);
+    cx.fillStyle = 'rgba(0,229,255,' + (alpha * 0.25) + ')';
+    cx.beginPath(); cx.arc(tx, railY - 2, 3, 0, Math.PI * 2); cx.fill();
+  }
+
+  // origin label
+  var ox = w2c(0);
+  cx.fillStyle = 'rgba(255,255,255,0.3)';
+  cx.font = 'bold 9px monospace';
+  cx.fillText('O', ox, railY - 12);
+
+  // position on track: clamp to visible area for drawing
+  var objX = w2c(state.x);
+
+  // velocity arrow
+  var arrowLen = Math.min(Math.abs(state.v) * 4, 60);
+  var arrowDir = state.v >= 0 ? 1 : -1;
+  var arrowY = railY - 30;
+  if (Math.abs(state.v) > 0.1) {
+    cx.strokeStyle = '#a8ff3e'; cx.lineWidth = 2.5; cx.lineCap = 'round';
+    cx.beginPath(); cx.moveTo(objX, arrowY); cx.lineTo(objX + arrowLen * arrowDir, arrowY); cx.stroke();
+    cx.fillStyle = '#a8ff3e';
+    var ah = objX + arrowLen * arrowDir;
+    cx.beginPath();
+    cx.moveTo(ah + 6 * arrowDir, arrowY);
+    cx.lineTo(ah - 4 * arrowDir, arrowY - 4);
+    cx.lineTo(ah - 4 * arrowDir, arrowY + 4);
+    cx.closePath(); cx.fill();
+  }
+
+  // car body
+  var r = 14, bodyW = 36, bodyH = 20;
+  var bodyX = objX - bodyW / 2;
+  var bodyY = railY - r - bodyH / 2;
+
+  // glow — safe because objX and railY are always finite (w2c clamps)
+  var grad = cx.createRadialGradient(objX, railY - r, 0, objX, railY - r, 30);
+  grad.addColorStop(0, 'rgba(0,229,255,0.3)');
+  grad.addColorStop(1, 'rgba(0,229,255,0)');
+  cx.fillStyle = grad;
+  cx.beginPath(); cx.arc(objX, railY - r, 30, 0, Math.PI * 2); cx.fill();
+
+  // body rect
+  cx.fillStyle = '#00e5ff';
+  cx.beginPath(); cx.roundRect(bodyX, bodyY, bodyW, bodyH, 6); cx.fill();
+
+  // cabin
+  cx.fillStyle = '#161929';
+  cx.beginPath(); cx.roundRect(bodyX + 6, bodyY - 10, bodyW - 12, 12, 4); cx.fill();
+
+  // wheels
+  [objX - 10, objX + 10].forEach(function(wx) {
+    cx.fillStyle = '#0d0f1a';
+    cx.beginPath(); cx.arc(wx, railY, 5, 0, Math.PI * 2); cx.fill();
+    cx.strokeStyle = '#a8ff3e'; cx.lineWidth = 2; cx.stroke();
+  });
+}
+
+// ─── CHARTS ───────────────────────────────────────────────────────────────────
+Chart.defaults.color = '#7986cb';
+Chart.defaults.backgroundColor = 'transparent';
+
+function makeChart(id, labelY, color, isStraight) {
+  return new Chart(document.getElementById(id), {
+    type: 'line',
+    data: { datasets: [{ data: [], borderColor: color, borderWidth: 3, pointRadius: 0, fill: false, tension: isStraight ? 0 : 0.4 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: {
+        x: { 
+          type: 'linear', 
+          min: 0,
+          title: { display: true, text: 'Tempo (s)', color: '#7986cb', font: { size: 9, family: 'Space Mono' } }, 
+          ticks: { color: '#7986cb', font: { size: 9 } }, 
+          grid: { color: 'rgba(255,255,255,0.05)' } 
+        },
+        y: { 
+          type: 'linear',
+          beginAtZero: false,
+          title: { display: true, text: labelY, color: color, font: { size: 9, family: 'Space Mono' } }, 
+          ticks: { color: '#7986cb', font: { size: 9 } }, 
+          grid: { color: 'rgba(255,255,255,0.05)' } 
+        }
+      }
+    }
+  });
+}
+
+var chartXT = makeChart('chartXT', 'Posicao (m)', '#00e5ff', false);
+var chartVT = makeChart('chartVT', 'Velocidade (m/s)', '#a8ff3e', true);
+
+function updateCharts() {
+  var pts = state.tHistory.map(function(t, i) { return { x: +t.toFixed(3), y: +state.xHistory[i].toFixed(2) }; });
+  chartXT.data.datasets[0].data = pts; chartXT.update('none');
+  var ptsV = state.tHistory.map(function(t, i) { return { x: +t.toFixed(3), y: +state.vHistory[i].toFixed(2) }; });
+  chartVT.data.datasets[0].data = ptsV; chartVT.update('none');
+}
+
+function switchTab(tab) {
+  ['xt','vt'].forEach(function(t) {
+    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+    document.getElementById('card-' + t).classList.toggle('active', t === tab);
+  });
+}
+
+// ─── CHALLENGES ───────────────────────────────────────────────────────────────
+var CHALLENGES = [
+  { icon: '&#127919;', text: 'Faca o objeto parar no ponto x = 10 m', check: function() { return Math.abs(state.v) < 0.5 && Math.abs(state.x - 10) < 1.5; } },
+  { icon: '&#128640;', text: 'Atinja velocidade v > 15 m/s sem aceleracao negativa', check: function() { return state.a >= 0 && state.v > 15; } },
+  { icon: '&#128260;', text: 'Faca o objeto mudar de direcao (v = 0 com a diferente de 0)', check: function() { return Math.abs(state.v) < 0.3 && Math.abs(state.a) > 0 && state.t > 0.5; } },
+  { icon: '&#128205;', text: 'Parta de x0 = -20 m e chegue a x = 0 m', check: function() { return state.x0 <= -19 && Math.abs(state.x) < 1.5; } },
+  { icon: '&#9889;',   text: 'Percorra mais de 40 m em menos de 5 segundos', check: function() { return Math.abs(state.x - state.x0) > 40 && state.t < 5; } }
+];
+var activeChallenge = null;
+
+function showChallenge() {
+  var c = CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)];
+  activeChallenge = c;
+  document.getElementById('challengeIcon').innerHTML = c.icon;
+  document.getElementById('challengeText').textContent = c.text;
+  document.getElementById('challengeToast').classList.add('show');
+}
+function closeChallenge() {
+  document.getElementById('challengeToast').classList.remove('show');
+  activeChallenge = null;
+}
+function checkChallenge() {
+  if (!activeChallenge || state.challengeDone) return;
+  if (activeChallenge.check()) {
+    state.challengeDone = true;
+    var flash = document.getElementById('successFlash');
+    flash.classList.add('show');
+    setTimeout(function() { flash.classList.remove('show'); closeChallenge(); }, 1800);
+  }
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+initSliders();
+
+// Wait for full layout paint before sizing canvas and drawing
+window.addEventListener('load', function() {
+  resizeCanvas();
+  resetSim();
+  setTimeout(showChallenge, 3000);
+});
+
+// Also handle resize
+window.addEventListener('resize', function() {
+  resizeCanvas();
+  if (!state.running) drawTrack();
+});
+
+// ResizeObserver as extra safety net
+if (window.ResizeObserver) {
+  new ResizeObserver(function() {
+    resizeCanvas();
+    if (!state.running) drawTrack();
+  }).observe(trackWrapper);
+}
+</script>
+</body>
+</html>
