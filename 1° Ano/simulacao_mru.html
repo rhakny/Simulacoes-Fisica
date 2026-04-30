@@ -169,22 +169,22 @@
   .formula-text strong { color: var(--accent3); }
   .formula-text sup { font-size: 0.85em; color: var(--accent); margin-left: 1px; }
   .spacer { height: 14px; }
-  .challenge-toast {
-    position: fixed; bottom: 24px; left: 50%;
-    transform: translateX(-50%) translateY(120px);
-    background: var(--surface2); border: 1.5px solid var(--accent);
-    border-radius: var(--radius); padding: 14px 18px;
-    max-width: calc(100vw - 40px); width: 360px;
-    box-shadow: 0 8px 32px rgba(0,229,255,0.2); z-index: 200;
-    transition: transform 0.4s cubic-bezier(.34,1.56,.64,1);
-    display: flex; align-items: flex-start; gap: 12px;
+  .mission-panel {
+    background: linear-gradient(135deg, var(--surface2), #1a1e30);
+    border-radius: var(--radius); padding: 16px;
+    border: 1px solid rgba(0,229,255,0.3);
+    margin-bottom: 4px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
   }
-  .challenge-toast.show { transform: translateX(-50%) translateY(0); }
-  .challenge-icon { font-size: 24px; }
-  .challenge-body { flex: 1; }
-  .challenge-label { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; }
-  .challenge-text { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.4; }
-  .challenge-close { background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 0; line-height: 1; }
+  .mission-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .mission-title { font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700; color: var(--accent); text-transform: uppercase; }
+  .mission-status { font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; background: rgba(0,229,255,0.15); padding: 3px 8px; border-radius: 12px; color: var(--accent); }
+  .mission-text { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.4; }
+  .mission-panel.success { border-color: var(--accent3); }
+  .mission-panel.success .mission-title { color: var(--accent3); }
+  .mission-panel.success .mission-status { background: var(--accent3); color: #000; }
+  .mission-panel.completed { border-color: #ffd700; }
+  .mission-panel.completed .mission-title { color: #ffd700; }
+  .mission-panel.completed .mission-status { background: #ffd700; color: #000; }
   .success-flash {
     position: fixed; inset: 0; background: rgba(168,255,62,0.12);
     pointer-events: none; opacity: 0; z-index: 300; transition: opacity 0.3s;
@@ -241,6 +241,16 @@
     </div>
   </div>
   <div class="controls-section">
+    <div class="mission-panel" id="missionPanel">
+      <div class="mission-header">
+        <span class="mission-title" id="missionTitle">Nível 1 / 20</span>
+        <span class="mission-status" id="missionStatus">Pendente</span>
+      </div>
+      <div class="mission-text" id="missionText">Carregando desafio...</div>
+      <div class="mission-actions" id="missionActions" style="display: none; margin-top: 12px;">
+        <button class="btn btn-start" style="width: 100%; padding: 10px; font-size: 14px;" onclick="nextLevel()">Próximo Nível &#10140;</button>
+      </div>
+    </div>
     <div class="slider-group">
       <div class="slider-header">
         <div class="slider-label">
@@ -315,14 +325,6 @@
     </div>
   </div>
 </main>
-<div class="challenge-toast" id="challengeToast">
-  <div class="challenge-icon" id="challengeIcon">&#127919;</div>
-  <div class="challenge-body">
-    <div class="challenge-label">Desafio</div>
-    <div class="challenge-text" id="challengeText">Faca o objeto parar no ponto x = 10 m</div>
-  </div>
-  <button class="challenge-close" onclick="closeChallenge()">x</button>
-</div>
 <div class="success-flash" id="successFlash"><span>PARABENS!</span></div>
 
 <script>
@@ -382,8 +384,11 @@ function initSliders() {
       document.getElementById(d.readId).textContent = v.toFixed(1);
       setFill(v);
       if (!state.running) {
+        state.t = 0; 
+        state.trail = []; state.tHistory = []; state.xHistory = []; state.vHistory = [];
         state.x = state.x0; state.v = state.v0;
-        updateDisplays(); drawTrack(); updateFormulaValues(true);
+        state.cameraX = state.x0;
+        updateDisplays(); drawTrack(); updateCharts(); updateFormulaValues(true);
       }
     });
   });
@@ -409,6 +414,24 @@ function pauseSim() {
 function resetSim() {
   state.running = false;
   if (state.raf) cancelAnimationFrame(state.raf);
+  
+  // Zera os controles
+  state.x0 = 0; state.v0 = 0; state.a = 0;
+  var sliders = [
+    { id: 'sliderX0', readId: 'readX0', min: -50, max: 50 },
+    { id: 'sliderV0', readId: 'readV0', min: -20, max: 20 },
+    { id: 'sliderA',  readId: 'readA',  min: -10, max: 10 }
+  ];
+  sliders.forEach(function(s) {
+    var el = document.getElementById(s.id);
+    if (el) {
+      el.value = 0;
+      document.getElementById(s.readId).textContent = "0.0";
+      var pct = ((0 - s.min) / (s.max - s.min)) * 100;
+      el.style.setProperty('--fill', pct + '%');
+    }
+  });
+
   state.t = 0; state.x = state.x0; state.v = state.v0;
   state.cameraX = state.x0;
   state.trail = []; state.tHistory = []; state.xHistory = []; state.vHistory = [];
@@ -538,7 +561,7 @@ function drawTrack() {
   // velocity arrow
   var arrowLen = Math.min(Math.abs(state.v) * 4, 60);
   var arrowDir = state.v >= 0 ? 1 : -1;
-  var arrowY = railY - 30;
+  var arrowY = railY - 40; // moved up to clear new car roof
   if (Math.abs(state.v) > 0.1) {
     cx.strokeStyle = '#a8ff3e'; cx.lineWidth = 2.5; cx.lineCap = 'round';
     cx.beginPath(); cx.moveTo(objX, arrowY); cx.lineTo(objX + arrowLen * arrowDir, arrowY); cx.stroke();
@@ -551,31 +574,145 @@ function drawTrack() {
     cx.closePath(); cx.fill();
   }
 
-  // car body
-  var r = 14, bodyW = 36, bodyH = 20;
-  var bodyX = objX - bodyW / 2;
-  var bodyY = railY - r - bodyH / 2;
-
-  // glow — safe because objX and railY are always finite (w2c clamps)
-  var grad = cx.createRadialGradient(objX, railY - r, 0, objX, railY - r, 30);
-  grad.addColorStop(0, 'rgba(0,229,255,0.3)');
+  // car glow
+  var grad = cx.createRadialGradient(objX, railY - 12, 0, objX, railY - 12, 40);
+  grad.addColorStop(0, 'rgba(0,229,255,0.25)');
   grad.addColorStop(1, 'rgba(0,229,255,0)');
   cx.fillStyle = grad;
-  cx.beginPath(); cx.arc(objX, railY - r, 30, 0, Math.PI * 2); cx.fill();
+  cx.beginPath(); cx.arc(objX, railY - 12, 40, 0, Math.PI * 2); cx.fill();
 
-  // body rect
+  cx.save();
+  cx.translate(objX, railY - 8);
+
+  // Car chassis with wheel arches
   cx.fillStyle = '#00e5ff';
-  cx.beginPath(); cx.roundRect(bodyX, bodyY, bodyW, bodyH, 6); cx.fill();
+  cx.beginPath();
+  cx.moveTo(-32, -2); // Rear bumper bottom
+  cx.lineTo(-26, -2); // Rear arch start
+  cx.arc(-16, -2, 10, Math.PI, 0, false); // Rear arch
+  cx.lineTo(8, -2); // Front arch start
+  cx.arc(18, -2, 10, Math.PI, 0, false); // Front arch
+  cx.lineTo(34, -2); // Front bumper bottom
+  cx.lineTo(34, -6); // Front bumper top
+  cx.lineTo(26, -12); // Hood slope
+  cx.lineTo(12, -14); // Windshield base
+  cx.lineTo(4, -24); // Roof front
+  cx.lineTo(-12, -24); // Roof rear
+  cx.lineTo(-24, -14); // Rear window base
+  cx.lineTo(-32, -12); // Trunk
+  cx.closePath();
+  cx.fill();
 
-  // cabin
+  // Windows
   cx.fillStyle = '#161929';
-  cx.beginPath(); cx.roundRect(bodyX + 6, bodyY - 10, bodyW - 12, 12, 4); cx.fill();
+  cx.beginPath();
+  cx.moveTo(-10, -22); // inside roof rear
+  cx.lineTo(2, -22); // inside roof front
+  cx.lineTo(9, -14); // inside windshield base
+  cx.lineTo(-21, -14); // inside rear window base
+  cx.closePath();
+  cx.fill();
 
-  // wheels
-  [objX - 10, objX + 10].forEach(function(wx) {
+  // B-pillar (door separator)
+  cx.strokeStyle = '#00e5ff';
+  cx.lineWidth = 3;
+  cx.beginPath();
+  cx.moveTo(-4, -22);
+  cx.lineTo(-4, -14);
+  cx.stroke();
+
+  // Headlight
+  cx.fillStyle = '#ffffff';
+  cx.beginPath();
+  cx.moveTo(34, -6);
+  cx.lineTo(30, -6);
+  cx.lineTo(27, -10);
+  cx.lineTo(32, -10);
+  cx.closePath();
+  cx.fill();
+
+  // Taillight
+  cx.fillStyle = '#ff4d6d';
+  cx.beginPath();
+  cx.moveTo(-32, -10);
+  cx.lineTo(-28, -10);
+  cx.lineTo(-28, -6);
+  cx.lineTo(-32, -6);
+  cx.closePath();
+  cx.fill();
+
+  // Headlight beam
+  if (state.v > 0) {
+      var beamAlpha = Math.min(state.v / 15, 1) * 0.4;
+      var beam = cx.createLinearGradient(34, -8, 120, -8);
+      beam.addColorStop(0, 'rgba(255, 255, 255, ' + beamAlpha + ')');
+      beam.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      cx.fillStyle = beam;
+      cx.beginPath();
+      cx.moveTo(34, -10);
+      cx.lineTo(120, -20);
+      cx.lineTo(120, 10);
+      cx.lineTo(34, -4);
+      cx.fill();
+  }
+
+  // Reverse light & beam
+  if (state.v < -0.1) {
+    cx.fillStyle = '#ffffff';
+    cx.fillRect(-32, -9, 2, 4);
+    var revAlpha = Math.min(Math.abs(state.v) / 10, 1) * 0.4;
+    var revBeam = cx.createLinearGradient(-32, -7, -80, -7);
+    revBeam.addColorStop(0, 'rgba(255, 255, 255, ' + revAlpha + ')');
+    revBeam.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    cx.fillStyle = revBeam;
+    cx.beginPath();
+    cx.moveTo(-32, -9);
+    cx.lineTo(-80, -15);
+    cx.lineTo(-80, 5);
+    cx.lineTo(-32, -5);
+    cx.fill();
+  }
+
+  // Exhaust fire
+  if (state.a > 0.1 && state.running) {
+    cx.fillStyle = '#ff4d6d';
+    cx.beginPath(); cx.arc(-32, -3, 3 + Math.random() * 3, 0, Math.PI * 2); cx.fill();
+    cx.fillStyle = '#ffaa00';
+    cx.beginPath(); cx.arc(-32, -3, 1 + Math.random() * 2, 0, Math.PI * 2); cx.fill();
+  }
+
+  cx.restore();
+
+  // Wheels with rotation
+  var angle = (state.x * CW / 100) / 8; // s = r * theta => theta = s / r (s convertido de metros para pixels)
+  [-16, 18].forEach(function(wxOffset) {
+    cx.save();
+    cx.translate(objX + wxOffset, railY - 8);
+    cx.rotate(angle);
+    
+    // Tire
     cx.fillStyle = '#0d0f1a';
-    cx.beginPath(); cx.arc(wx, railY, 5, 0, Math.PI * 2); cx.fill();
-    cx.strokeStyle = '#a8ff3e'; cx.lineWidth = 2; cx.stroke();
+    cx.beginPath(); cx.arc(0, 0, 8, 0, Math.PI * 2); cx.fill();
+    
+    // Rim
+    cx.strokeStyle = '#a8ff3e'; 
+    cx.lineWidth = 1.5;
+    cx.beginPath(); cx.arc(0, 0, 6, 0, Math.PI * 2); cx.stroke();
+    
+    // Spokes
+    cx.beginPath();
+    for(var i=0; i<5; i++) {
+        var a = i * Math.PI * 2 / 5;
+        cx.moveTo(0, 0);
+        cx.lineTo(Math.cos(a) * 6, Math.sin(a) * 6);
+    }
+    cx.stroke();
+    
+    // Center cap
+    cx.fillStyle = '#00e5ff';
+    cx.beginPath(); cx.arc(0, 0, 2, 0, Math.PI * 2); cx.fill();
+    
+    cx.restore();
   });
 }
 
@@ -627,34 +764,83 @@ function switchTab(tab) {
   });
 }
 
-// ─── CHALLENGES ───────────────────────────────────────────────────────────────
-var CHALLENGES = [
-  { icon: '&#127919;', text: 'Faca o objeto parar no ponto x = 10 m', check: function() { return Math.abs(state.v) < 0.5 && Math.abs(state.x - 10) < 1.5; } },
-  { icon: '&#128640;', text: 'Atinja velocidade v > 15 m/s sem aceleracao negativa', check: function() { return state.a >= 0 && state.v > 15; } },
-  { icon: '&#128260;', text: 'Faca o objeto mudar de direcao (v = 0 com a diferente de 0)', check: function() { return Math.abs(state.v) < 0.3 && Math.abs(state.a) > 0 && state.t > 0.5; } },
-  { icon: '&#128205;', text: 'Parta de x0 = -20 m e chegue a x = 0 m', check: function() { return state.x0 <= -19 && Math.abs(state.x) < 1.5; } },
-  { icon: '&#9889;',   text: 'Percorra mais de 40 m em menos de 5 segundos', check: function() { return Math.abs(state.x - state.x0) > 40 && state.t < 5; } }
+// ─── DESAFIOS PROGRESSIVOS ──────────────────────────────────────────────────
+var GAME_LEVELS = [
+  { title: "Nível 1: Primeiro Passo", desc: "Ajuste a posição inicial para 0 e faça o carrinho cruzar a marca de x = 5 m.", check: function() { return state.x0 <= 0 && state.x > 5; } },
+  { title: "Nível 2: Ré Engatada", desc: "Ajuste a posição inicial para 0 e mova-se para trás até passar de x = -5 m.", check: function() { return state.x0 >= 0 && state.x < -5; } },
+  { title: "Nível 3: Saindo do Buraco", desc: "Ajuste a posição inicial para -20 m (ou menos) e chegue até a origem (x = 0).", check: function() { return state.x0 <= -20 && state.x >= 0; } },
+  { title: "Nível 4: Pé no Acelerador", desc: "Parta do repouso (v0 = 0) e acelere até alcançar 10 m/s.", check: function() { return state.v0 === 0 && state.v >= 10; } },
+  { title: "Nível 5: Teste de Freio", desc: "Inicie indo para a frente (v0 > 0) e use aceleração negativa para frear até parar.", check: function() { return state.v0 > 0 && state.a < 0 && Math.abs(state.v) <= 0.5; } },
+  { title: "Nível 6: Efeito Bumerangue", desc: "Vá para a frente, pare e comece a voltar de ré (alcance v < -2 m/s).", check: function() { return state.v0 > 0 && state.a < 0 && state.v <= -2; } },
+  { title: "Nível 7: Alta Velocidade", desc: "Partindo de antes de x = 10, alcance x = 30 m em menos de 3 segundos.", check: function() { return state.x0 <= 10 && state.x >= 30 && state.t < 3; } },
+  { title: "Nível 8: Controle de Cruzeiro", desc: "Desligue a aceleração (a = 0) e viaje por pelo menos 20 m para frente.", check: function() { return state.a === 0 && state.v0 > 0 && (state.x - state.x0) >= 20; } },
+  { title: "Nível 9: Marcha à Ré Rápida", desc: "Parta com v0 >= -5 m/s e atinja uma velocidade de -15 m/s ou mais rápida.", check: function() { return state.v0 >= -5 && state.v <= -15; } },
+  { title: "Nível 10: Inversão de Polos", desc: "Parta de x0 = 20 m (ou mais) e viaje até x = -20 m (ou menos).", check: function() { return state.x0 >= 20 && state.x <= -20; } },
+  { title: "Nível 11: Tiro Curto", desc: "Parta exatamente da origem (x0 = 0) e atinja a velocidade de 20 m/s.", check: function() { return state.x0 === 0 && state.v >= 20; } },
+  { title: "Nível 12: Passeio Lento", desc: "Percorra 20 metros para frente demorando MAIS de 8 segundos no cronômetro.", check: function() { return (state.x - state.x0) >= 20 && state.t > 8; } },
+  { title: "Nível 13: Frenagem Controlada", desc: "Parta com v0 = 20 m/s e freie para parar (v=0) em algum ponto entre x = 30 m e x = 45 m.", check: function() { return state.v0 === 20 && state.a < 0 && Math.abs(state.v) <= 0.5 && state.x >= 30 && state.x <= 45; } },
+  { title: "Nível 14: Encontro Marcado", desc: "Partindo antes de x = 20, cruze a marca de x = 40 m exatamente entre t = 3.5s e 4.5s.", check: function() { return state.x0 <= 20 && state.x >= 40 && state.v > 0 && state.t >= 3.5 && state.t <= 4.5; } },
+  { title: "Nível 15: Parada de Emergência", desc: "Parta com v0 = 20 m/s e consiga parar o veículo (v=0) em menos de 2.5 segundos.", check: function() { return state.v0 === 20 && state.a < 0 && Math.abs(state.v) <= 0.5 && state.t <= 2.5 && state.t > 0.5; } },
+  { title: "Nível 16: O Pêndulo Longo", desc: "Parta de x0 = 50 m e v0 >= 0, acelere para trás, e cruze x = 0 a mais de -15 m/s (ex: -16).", check: function() { return state.x0 === 50 && state.v0 >= 0 && state.a < 0 && state.x <= 0 && state.v <= -15; } },
+  { title: "Nível 17: Fuga da Câmera", desc: "Partindo de x0 < 50 m, continue acelerando até ultrapassar a marca de x = 100 m.", check: function() { return state.x0 <= 50 && state.x >= 100; } },
+  { title: "Nível 18: Zero Absoluto", desc: "Deixe o objeto perfeitamente parado na origem (x=0) por pelo menos 3 segundos.", check: function() { return state.x0 === 0 && state.v0 === 0 && state.a === 0 && state.t >= 3; } },
+  { title: "Nível 19: Calculista Matemático", desc: "Parta de x0 = -40 m e aplique freios perfeitos para parar na origem x = 0 m (erro ±1.5m).", check: function() { return state.x0 === -40 && state.v0 > 0 && state.a < 0 && Math.abs(state.v) <= 0.5 && Math.abs(state.x) <= 1.5; } },
+  { title: "Nível 20: O Grande Mestre", desc: "Parta de x0 = -50 m, atinja a velocidade de 0 m/s exatamente em x = 50 m (erro ±1.5m).", check: function() { return state.x0 === -50 && state.v0 > 0 && state.a < 0 && Math.abs(state.v) <= 0.5 && Math.abs(state.x - 50) <= 1.5; } }
 ];
-var activeChallenge = null;
 
-function showChallenge() {
-  var c = CHALLENGES[Math.floor(Math.random() * CHALLENGES.length)];
-  activeChallenge = c;
-  document.getElementById('challengeIcon').innerHTML = c.icon;
-  document.getElementById('challengeText').textContent = c.text;
-  document.getElementById('challengeToast').classList.add('show');
+var currentLevel = 0;
+try {
+  var saved = localStorage.getItem('mrua_level');
+  if (saved !== null) currentLevel = parseInt(saved);
+} catch(e) {}
+if (currentLevel >= GAME_LEVELS.length) currentLevel = GAME_LEVELS.length - 1;
+
+function loadLevel() {
+  var lvl = GAME_LEVELS[currentLevel];
+  document.getElementById('missionTitle').textContent = lvl.title;
+  document.getElementById('missionText').textContent = lvl.desc;
+  
+  var panel = document.getElementById('missionPanel');
+  panel.className = 'mission-panel';
+  var st = document.getElementById('missionStatus');
+  st.textContent = 'Pendente';
+  
+  document.getElementById('missionActions').style.display = 'none';
+  state.challengeDone = false;
 }
-function closeChallenge() {
-  document.getElementById('challengeToast').classList.remove('show');
-  activeChallenge = null;
+
+function nextLevel() {
+  if (currentLevel < GAME_LEVELS.length - 1) {
+    currentLevel++;
+    try { localStorage.setItem('mrua_level', currentLevel); } catch(e){}
+    resetSim();
+    loadLevel();
+  }
 }
+
 function checkChallenge() {
-  if (!activeChallenge || state.challengeDone) return;
-  if (activeChallenge.check()) {
+  if (state.challengeDone) return;
+  var lvl = GAME_LEVELS[currentLevel];
+  if (lvl.check()) {
     state.challengeDone = true;
+    
+    var panel = document.getElementById('missionPanel');
+    var st = document.getElementById('missionStatus');
+    
+    if (currentLevel === GAME_LEVELS.length - 1) {
+       panel.className = 'mission-panel completed';
+       st.textContent = 'JOGO ZERADO!';
+    } else {
+       panel.className = 'mission-panel success';
+       st.textContent = 'CONCLUÍDO';
+       document.getElementById('missionActions').style.display = 'block';
+    }
+    
     var flash = document.getElementById('successFlash');
     flash.classList.add('show');
-    setTimeout(function() { flash.classList.remove('show'); closeChallenge(); }, 1800);
+    setTimeout(function() { flash.classList.remove('show'); }, 1800);
+    
+    pauseSim(); // Auto-pause so user can see exactly where they stopped!
   }
 }
 
@@ -665,7 +851,7 @@ initSliders();
 window.addEventListener('load', function() {
   resizeCanvas();
   resetSim();
-  setTimeout(showChallenge, 3000);
+  loadLevel();
 });
 
 // Also handle resize
